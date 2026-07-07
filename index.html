@@ -885,10 +885,11 @@ const ROBOT = {
 };
 const ROBOT_STATUS=['자율주행 중','작물 스캔 중','병해충 탐지','구역 이동 중'];
 // 편대(3대) — 통합 관제에서 한 화면에 동시 모니터링
+// lane=도랑 x위치(고정), y=현재 위치, dir=왕복 방향(+아래/-위). 각 로봇은 자기 도랑에서 직선 왕복만 함.
 const ROBOTS=[
-  {id:1,name:'로봇 1호',model:'EVE Clever',color:'#256B4E',battery:87,speed:.8,signal:94,temp:34,statusIdx:0,wpi:0,up:126,x:.14,y:.26,path:[{x:.14,y:.26},{x:.5,y:.26},{x:.5,y:.48},{x:.16,y:.48}]},
-  {id:2,name:'로봇 2호',model:'EVE Clever',color:'#3E6E8E',battery:63,speed:.7,signal:90,temp:36,statusIdx:1,wpi:0,up:212,x:.58,y:.32,path:[{x:.58,y:.32},{x:.86,y:.32},{x:.86,y:.58},{x:.58,y:.58}]},
-  {id:3,name:'로봇 3호',model:'EVE Clever',color:'#C98A21',battery:37,speed:.5,signal:88,temp:33,statusIdx:3,wpi:0,up:47,x:.2,y:.7,path:[{x:.2,y:.7},{x:.62,y:.7},{x:.62,y:.86},{x:.2,y:.86}]},
+  {id:1,name:'로봇 1호',model:'EVE Clever',color:'#256B4E',battery:87,speed:.8,signal:94,temp:34,statusIdx:0,up:126,lane:.24,y:.20,dir:1},
+  {id:2,name:'로봇 2호',model:'EVE Clever',color:'#3E6E8E',battery:63,speed:.7,signal:90,temp:36,statusIdx:1,up:212,lane:.50,y:.62,dir:-1},
+  {id:3,name:'로봇 3호',model:'EVE Clever',color:'#C98A21',battery:37,speed:.5,signal:88,temp:33,statusIdx:3,up:47,lane:.76,y:.45,dir:1},
 ];
 let robotTimer=null;
 
@@ -942,7 +943,7 @@ function showCamFallback(){ const f=document.getElementById('camFallback'); if(f
 
 function controlHTML(){
   return `<div class="map-card" style="margin-bottom:18px">
-     <h3 style="font-size:17.6px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px">농장 내 로봇 위치 <span class="hint">가동 ${ROBOTS.length}대 · 실시간</span></h3>
+     <h3 style="font-size:17.6px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px">농장 내 로봇 위치 <span class="hint">가동 ${ROBOTS.length}대 · 도랑 직선 왕복</span></h3>
      <div style="margin-top:12px">${mapSVG()}</div>
      <div class="legend" style="margin-top:12px">${ROBOTS.map(r=>`<span><i style="width:9px;height:9px;border-radius:50%;background:${r.color};display:inline-block"></i>${r.name}</span>`).join('')}</div>
    </div>
@@ -966,17 +967,20 @@ function robotCardHTML(r){
 }
 function mapSVG(){
   const F={x:6,y:6,w:88,h:52};
-  const mapPt=p=>`${(F.x+p.x*F.w).toFixed(1)},${(F.y+p.y*F.h).toFixed(1)}`;
-  let beds=''; for(let i=1;i<6;i++){ const gx=(F.x+F.w*i/6).toFixed(1); beds+=`<line x1="${gx}" y1="${F.y}" x2="${gx}" y2="${F.y+F.h}" stroke="#d5e0d3" stroke-width=".5"/>`; }
-  const routes=ROBOTS.map(r=>`<polyline points="${r.path.map(mapPt).join(' ')}" fill="none" stroke="${r.color}" stroke-opacity=".3" stroke-width=".7" stroke-dasharray="2 2"/>`).join('');
-  const marks=ROBOTS.map(r=>`<g class="rmk" id="rmk-${r.id}" transform="translate(${(F.x+r.x*F.w).toFixed(1)} ${(F.y+r.y*F.h).toFixed(1)})">
+  const X=n=>(F.x+n*F.w).toFixed(1), Y=n=>(F.y+n*F.h).toFixed(1);
+  // 재배 베드(초록 이랑) — 도랑은 베드 사이 공간
+  const beds=[[.04,.18],[.30,.44],[.56,.70],[.82,.96]].map(([a,b])=>
+    `<rect x="${X(a)}" y="${Y(.06)}" width="${((b-a)*F.w).toFixed(1)}" height="${(.88*F.h).toFixed(1)}" rx="1.5" fill="#cfe3c8" stroke="#b6d2ad" stroke-width=".4"/>`).join('');
+  // 각 로봇 도랑(직선 레일)
+  const rails=ROBOTS.map(r=>`<line x1="${X(r.lane)}" y1="${Y(.08)}" x2="${X(r.lane)}" y2="${Y(.92)}" stroke="${r.color}" stroke-opacity=".3" stroke-width=".6" stroke-dasharray="1.5 1.8"/>`).join('');
+  const marks=ROBOTS.map(r=>`<g id="rmk-${r.id}" transform="translate(${X(r.lane)} ${Y(r.y)})">
       <circle r="4" fill="${r.color}" opacity=".18"><animate attributeName="r" values="4;7;4" dur="2s" repeatCount="indefinite"/></circle>
       <circle r="2.7" fill="${r.color}" stroke="#fff" stroke-width="1"/>
       <text y="-5" text-anchor="middle" font-size="4.2" font-weight="700" fill="${r.color}">${r.id}</text>
     </g>`).join('');
-  return `<svg class="farm-map" viewBox="0 0 100 64" role="img" aria-label="농장 맵과 로봇 ${ROBOTS.length}대 위치">
-    <rect x="${F.x}" y="${F.y}" width="${F.w}" height="${F.h}" rx="3" fill="#e7efe4" stroke="#cbd8c6" stroke-width=".6"/>
-    ${beds}${routes}${marks}
+  return `<svg class="farm-map" viewBox="0 0 100 64" role="img" aria-label="온실 도랑을 따라 왕복하는 로봇 ${ROBOTS.length}대">
+    <rect x="${F.x}" y="${F.y}" width="${F.w}" height="${F.h}" rx="3" fill="#eef4ea" stroke="#cbd8c6" stroke-width=".6"/>
+    ${beds}${rails}${marks}
   </svg>`;
 }
 
@@ -995,11 +999,12 @@ function goRobot(view){
 function startRobot(){ if(!robotTimer) robotTimer=setInterval(robotTick,2000); }
 function stopRobot(){ if(robotTimer){ clearInterval(robotTimer); robotTimer=null; } }
 function robotTick(){
+  const YMIN=.10, YMAX=.90, step=0.05;
   ROBOTS.forEach(r=>{
-    const wp=r.path[r.wpi];
-    const dx=wp.x-r.x, dy=wp.y-r.y, dist=Math.hypot(dx,dy), step=0.045;
-    if(dist<step){ r.x=wp.x; r.y=wp.y; r.wpi=(r.wpi+1)%r.path.length; r.statusIdx=(r.statusIdx+1)%ROBOT_STATUS.length; }
-    else { r.x+=dx/dist*step; r.y+=dy/dist*step; }
+    // 자기 도랑(lane)에서 직선 왕복만: y만 변하고 끝에서 방향 전환
+    r.y += r.dir*step;
+    if(r.y>=YMAX){ r.y=YMAX; r.dir=-1; r.statusIdx=(r.statusIdx+1)%ROBOT_STATUS.length; }
+    else if(r.y<=YMIN){ r.y=YMIN; r.dir=1; r.statusIdx=(r.statusIdx+1)%ROBOT_STATUS.length; }
     r.battery=+Math.max(10, r.battery-0.15).toFixed(1);
     r.speed=+(0.5+Math.random()*0.6).toFixed(1);
     r.signal=Math.round(87+Math.random()*11);
@@ -1009,7 +1014,7 @@ function robotTick(){
   updateFleetUI(); updateMarkers();
 }
 function updateMarkers(){
-  ROBOTS.forEach(r=>{ const g=document.getElementById('rmk-'+r.id); if(g) g.setAttribute('transform',`translate(${(6+r.x*88).toFixed(1)} ${(6+r.y*52).toFixed(1)})`); });
+  ROBOTS.forEach(r=>{ const g=document.getElementById('rmk-'+r.id); if(g) g.setAttribute('transform',`translate(${(6+r.lane*88).toFixed(1)} ${(6+r.y*52).toFixed(1)})`); });
 }
 function updateFleetUI(){
   ROBOTS.forEach(r=>{
