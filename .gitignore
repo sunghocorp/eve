@@ -1,0 +1,7 @@
+# 로컬 도구/에이전트 설정 — 배포에 불필요
+.claude/
+
+# OS 부산물
+Thumbs.db
+.DS_Store
+desktop.ini

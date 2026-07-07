@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EVE · 재배환경 모니터링</title>
+
+<!-- 배포 시 Google Fonts / cdnjs 는 자동 로드됩니다. 로컬 미리보기에서 폰트가 막혀도 시스템 폰트로 안전하게 대체됩니다. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- 그래프 드래그 이동 / 확대(터치 포함). cdnjs. 차단되면 그래프는 정적으로 안전하게 표시됩니다. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
+
+<style>
+  :root{
+    --paper:#F4F6F2;
+    --mist:#FFFFFF;
+    --ink:#182320;
+    --haze:#6C776F;
+    --line:#E2E7DE;
+    --leaf:#256B4E;
+    --leaf-soft:#DCEDE4;
+    --sky:#3E6E8E;
+    --soil:#B4622E;
+    --amber:#C98A21;
+    --danger:#B23A48;
+    --font-kr:'IBM Plex Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+    --shadow:0 1px 2px rgba(24,35,32,.04),0 8px 24px -16px rgba(24,35,32,.18);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:var(--font-kr);
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+  }
+
+  /* ---------- Layout shell ---------- */
+  .app{display:grid;grid-template-columns:246px 1fr;min-height:100vh}
+
+  .sidebar{
+    background:var(--mist);
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;
+    position:sticky;top:0;height:100vh;
+  }
+  .brand{padding:22px 22px 18px;border-bottom:1px solid var(--line)}
+  .brand-mark{display:flex;align-items:center;gap:10px}
+  .brand-dot{
+    width:30px;height:30px;border-radius:8px;flex:none;
+    background:radial-gradient(circle at 32% 28%,#3ea274,var(--leaf) 70%);
+    position:relative;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);
+  }
+  .brand-dot::after{
+    content:"";position:absolute;inset:0;border-radius:8px;
+    background:
+      repeating-linear-gradient(0deg,transparent 0 5px,rgba(255,255,255,.14) 5px 6px);
+  }
+  .brand-name{font-weight:700;font-size:15px;letter-spacing:-.01em}
+  .brand-sub{font-size:11px;color:var(--haze);font-family:var(--font-mono);letter-spacing:.02em;margin-top:2px}
+
+  /* 시설 선택 */
+  .site-pick{padding:12px 14px 14px;border-bottom:1px solid var(--line)}
+  .select-wrap{position:relative;margin-top:2px}
+  .select-wrap select{
+    width:100%;appearance:none;-webkit-appearance:none;
+    font-family:var(--font-kr);font-size:13.5px;color:var(--ink);
+    background:var(--paper);border:1px solid var(--line);border-radius:9px;
+    padding:9px 30px 9px 12px;cursor:pointer;line-height:1.3;
+  }
+  .select-wrap select:hover{border-color:#cfd7cd}
+  .select-wrap select:focus-visible{outline:2px solid var(--leaf);outline-offset:1px}
+  .select-caret{position:absolute;right:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--haze);pointer-events:none}
+
+  .nav{padding:12px 12px;flex:1;overflow-y:auto}
+  .nav-label{font-size:10px;letter-spacing:.14em;color:var(--haze);text-transform:uppercase;padding:10px 12px 6px;font-family:var(--font-mono)}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;width:100%;
+    padding:9px 12px;border:none;background:none;cursor:pointer;
+    font-family:var(--font-kr);font-size:13.5px;color:var(--ink);
+    border-radius:9px;text-align:left;transition:background .15s,color .15s;
+    position:relative;
+  }
+  .nav-item .ico{width:17px;height:17px;flex:none;stroke:var(--haze);transition:stroke .15s}
+  .nav-item:hover{background:var(--paper)}
+  .nav-item.active{background:var(--leaf-soft);color:var(--leaf);font-weight:600}
+  .nav-item.active .ico{stroke:var(--leaf)}
+  .nav-item:focus-visible{outline:2px solid var(--leaf);outline-offset:1px}
+
+  .sidebar-foot{padding:14px 22px;border-top:1px solid var(--line);font-size:11px;color:var(--haze)}
+  .ds-pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--leaf)}
+  .ver{margin-top:4px;font-family:var(--font-mono)}
+  /* 회사 로고 (사이드바 하단) */
+  .brand-logo{display:flex;flex-direction:column;align-items:center;gap:11px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .brand-logo img{max-width:160px;max-height:34px;width:auto;height:auto;opacity:.92}
+
+  /* ---------- Main ---------- */
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:16px 30px;border-bottom:1px solid var(--line);background:rgba(244,246,242,.85);
+    backdrop-filter:blur(6px);position:sticky;top:0;z-index:5;
+  }
+  .topbar h1{font-size:17px;font-weight:600;letter-spacing:-.01em}
+  .topbar .crumb{font-size:11.5px;color:var(--haze);font-family:var(--font-mono);margin-top:1px}
+  .clockbox{text-align:right;font-family:var(--font-mono)}
+  .clock{font-size:15px;font-weight:500;letter-spacing:.01em}
+  .stamp{font-size:10.5px;color:var(--haze);margin-top:1px}
+
+  .content{padding:26px 30px 60px;max-width:1180px;width:100%}
+  .loading{padding:60px 8px;color:var(--haze);font-family:var(--font-mono);font-size:13px;display:flex;align-items:center;gap:10px}
+  .loading .dot{animation:pulse 1.4s infinite}
+  @keyframes pulse{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
+
+  /* KPI readout strip */
+  .readout{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    margin-bottom:26px;box-shadow:var(--shadow);
+  }
+  .cell{background:var(--mist);padding:15px 16px 14px;position:relative}
+  .cell::before{content:"";position:absolute;left:16px;top:0;width:22px;height:2px;background:var(--leaf);border-radius:0 0 2px 2px}
+  .cell .k{font-size:11px;color:var(--haze);letter-spacing:.01em;display:flex;align-items:center;gap:6px}
+  .cell .v{font-family:var(--font-mono);font-weight:600;font-size:26px;letter-spacing:-.02em;margin-top:7px;line-height:1}
+  .cell .u{font-size:12px;color:var(--haze);font-weight:400;margin-left:3px}
+  .cell .d{font-size:11px;margin-top:6px;font-family:var(--font-mono);display:flex;align-items:center;gap:4px}
+  .up{color:var(--soil)}.down{color:var(--sky)}.flat{color:var(--haze)}
+  .tick{width:6px;height:6px;border-radius:50%;background:var(--leaf)}
+  .tick.warn{background:var(--amber)}
+
+  /* Cards + charts */
+  .grid{display:grid;gap:18px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .card{
+    background:var(--mist);border:1px solid var(--line);border-radius:14px;
+    padding:18px 18px 14px;box-shadow:var(--shadow);
+  }
+  .card h3{font-size:13.5px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .card .hint{font-size:11px;color:var(--haze);font-family:var(--font-mono);font-weight:400}
+  .card .cwrap{position:relative;height:250px;margin-top:12px}
+  .card.tall .cwrap{height:300px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:11.5px;color:var(--haze)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .swatch{width:11px;height:3px;border-radius:2px;display:inline-block}
+
+  /* 드래그/확대 도구 */
+  .chart-tools{display:inline-flex;align-items:center;gap:10px;font-weight:400}
+  .zoom-reset{font-family:var(--font-mono);font-size:10.5px;color:var(--haze);background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:3px 9px;cursor:pointer;transition:color .15s,border-color .15s}
+  .zoom-reset:hover{color:var(--leaf);border-color:#cfd7cd}
+  .zoom-reset:focus-visible{outline:2px solid var(--leaf);outline-offset:1px}
+
+  .note{
+    background:var(--leaf-soft);border:1px solid #C6E0D2;color:#1c5a41;
+    border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.6;
+  }
+  .note code{font-family:var(--font-mono);background:rgba(37,107,78,.1);padding:1px 5px;border-radius:4px;font-size:12px}
+
+  .banner{background:#FBF1DC;border:1px solid #EAD9AE;color:#7a5a12;border-radius:12px;padding:11px 15px;font-size:12.5px;line-height:1.5;margin-bottom:16px}
+  .banner b{font-weight:600}
+  .banner code{font-family:var(--font-mono);background:rgba(201,138,33,.16);padding:1px 5px;border-radius:4px}
+
+  .src-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}
+  .src-table th,.src-table td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .src-table th{font-size:11px;color:var(--haze);font-weight:500;letter-spacing:.04em;font-family:var(--font-mono);text-transform:uppercase}
+  .src-table td:first-child{font-family:var(--font-mono);color:var(--leaf)}
+  .badge{font-family:var(--font-mono);font-size:11px;padding:2px 8px;border-radius:20px;background:var(--leaf-soft);color:var(--leaf)}
+  .badge.gray{background:var(--paper);color:var(--haze)}
+
+  .page-title{font-size:20px;font-weight:700;letter-spacing:-.02em;margin-bottom:4px}
+  .page-desc{font-size:13px;color:var(--haze);margin-bottom:22px}
+
+  .view{display:none;animation:rise .35s ease both}
+  .view.active{display:block}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* Mobile menu button */
+  .menu-btn{display:none;background:var(--mist);border:1px solid var(--line);border-radius:9px;width:38px;height:38px;cursor:pointer;align-items:center;justify-content:center}
+  .menu-btn .ico{width:19px;height:19px;stroke:var(--ink)}
+  .scrim{display:none}
+
+  /* ---------- Responsive ---------- */
+  @media(max-width:860px){
+    .app{grid-template-columns:1fr}
+    .sidebar{
+      position:fixed;left:0;top:0;z-index:40;width:246px;transform:translateX(-100%);
+      transition:transform .28s ease;box-shadow:0 0 40px rgba(0,0,0,.18);
+    }
+    .sidebar.open{transform:none}
+    .scrim.show{display:block;position:fixed;inset:0;background:rgba(20,28,25,.4);z-index:30}
+    .menu-btn{display:flex}
+    .topbar{padding:14px 16px}
+    .content{padding:20px 16px 50px}
+    .g2{grid-template-columns:1fr}
+    .topbar h1{font-size:15px}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <div class="brand-dot"></div>
+        <div>
+          <div class="brand-name">EVE Clever</div>
+          <div class="brand-sub" id="brandSub">SUNGHO-RS · ENV</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 시설 선택 -->
+    <div class="site-pick">
+      <label class="nav-label" for="siteSel" style="padding:0 0 6px 2px;display:block">시설 선택</label>
+      <div class="select-wrap">
+        <select id="siteSel" aria-label="시설 선택"></select>
+        <svg class="select-caret" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav"></nav>
+
+    <div class="sidebar-foot">
+      <div class="ds-pill"><span class="dot"></span> <span id="dsLabel">데이터셋</span></div>
+      <div class="ver">v0.4 · demo</div>
+      <!-- 회사 로고. 파일이 없는 이미지는 각자 자동으로 숨겨집니다. -->
+      <div class="brand-logo">
+        <img src="assets/sunghocorp.png" alt="(주)성호에스아이코퍼레이션" onerror="this.style.display='none'">
+        <img src="assets/sunghoatec.png" alt="농업회사법인 성호에이텍(주)" onerror="this.style.display='none'">
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0">
+        <button class="menu-btn" id="menuBtn" aria-label="메뉴 열기">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <div style="min-width:0">
+          <h1 id="topTitle">재배환경 모니터링</h1>
+          <div class="crumb" id="topCrumb">EVE Clever</div>
+        </div>
+      </div>
+      <div class="clockbox">
+        <div class="clock" id="clock">--:--:--</div>
+        <div class="stamp" id="stamp">데이터 기준: 오늘</div>
+      </div>
+    </header>
+
+    <!-- 시설/뷰에 따라 동적으로 렌더링됩니다 -->
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   EVE Clever 재배환경 대시보드 — 멀티 시설 + 실측 CSV 연동
+
+   시설
+   ─ container : data/container/data.csv  (90일 · 1분 = 129,600행)
+                 → 집계: 최근24h(5분 평균) / 상세추이(90일·1시간 평균, 드래그·확대) / 일주기(시간대 평균)
+   ─ precooler : data/precooler/hourly.csv (더미 스냅샷)
+   ─ office    : data/office/data.csv (6개월 일별 · 두 위치 EC/온도, 2줄 헤더)
+
+   상세 뷰의 그래프는 드래그(가로 이동)·휠/핀치(확대) 가능. (chartjs-plugin-zoom)
+   실측 전환: 각 data/<시설>/*.csv 를 교체하면 그대로 반영.
+   (file:// 더블클릭 시 fetch가 막히므로 내장 샘플로 표시 — 데모 안전장치)
+   ========================================================= */
+
+function vpd(t, rh){
+  const svp = 0.6108 * Math.exp(17.27*t/(t+237.3));
+  return +(svp*(1 - rh/100)).toFixed(2);
+}
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const fmtMD=(iso)=>{ const p=String(iso).split('-'); return (+p[1])+'/'+(+p[2]); };
+
+/* ================= 아이콘 ================= */
+const ICON = {
+  grid:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>`,
+  thermo:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M14 14.76V5a2 2 0 1 0-4 0v9.76a4 4 0 1 0 4 0z"/></svg>`,
+  gauge:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 19a8 8 0 1 1 16 0"/><path d="M12 19l4-5"/></svg>`,
+  bolt:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>`,
+  trend:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg>`,
+  clock:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>`,
+  db:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>`,
+};
+
+/* ================= 차트 색 / 공통 헬퍼 ================= */
+Chart.defaults.font.family = "'IBM Plex Mono', ui-monospace, monospace";
+Chart.defaults.font.size = 11;
+Chart.defaults.color = '#6C776F';
+const C = {leaf:'#256B4E', sky:'#3E6E8E', soil:'#B4622E', amber:'#C98A21', line:'#E2E7DE'};
+const grid = {color:C.line, drawTicks:false};
+
+/* zoom 플러그인 등록 (없거나 차단되면 정적 차트로 안전하게 동작) */
+let HAS_ZOOM=false;
+try{
+  const zp = window['chartjs-plugin-zoom'] || window.ChartZoom;
+  if(zp) Chart.register(zp);
+  HAS_ZOOM = !!(Chart.registry && Chart.registry.plugins && Chart.registry.plugins.get('zoom'));
+}catch(e){ HAS_ZOOM=false; }
+const ZOOM_CFG = {
+  pan:{enabled:true, mode:'x'},
+  zoom:{wheel:{enabled:true}, pinch:{enabled:true}, mode:'x'},
+  limits:{x:{min:'original', max:'original'}}
+};
+
+const baseOpts = (extra={}) => ({
+  responsive:true, maintainAspectRatio:false,
+  interaction:{mode:'index', intersect:false},
+  plugins:{ legend:{display:false},
+    tooltip:{backgroundColor:'#182320', padding:10, cornerRadius:8, titleFont:{family:"'IBM Plex Mono'"}, bodyFont:{family:"'IBM Plex Mono'"}}
+  },
+  scales:{ x:{grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:8}} },
+  ...extra
+});
+function areaFill(ctx, hex){
+  const c=ctx.chart.ctx, g=c.createLinearGradient(0,0,0,ctx.chart.height);
+  g.addColorStop(0, hex+'33'); g.addColorStop(1, hex+'00'); return g;
+}
+const line = (label,data,color,axis='y',fill=false)=>({
+  label, data, borderColor:color, yAxisID:axis, tension:.35,
+  borderWidth:2, pointRadius:0, pointHoverRadius:4, pointHoverBackgroundColor:color,
+  fill: fill ? {target:'origin'} : false,
+  backgroundColor: fill ? (ctx)=>areaFill(ctx,color) : undefined
+});
+/* 부동소수점 노이즈 제거(1.70000… → 1.7) */
+const cleanNum = (v)=> Math.round((+v)*1e6)/1e6;
+const suffixCb = (s)=> (v)=> `${cleanNum(v)}${s}`;
+const fmtNum = (v,dec)=> dec>0 ? (+v).toFixed(dec) : Math.round(+v);
+function addZoom(opts, card){
+  if(card.pan && HAS_ZOOM){ opts.plugins = opts.plugins||{}; opts.plugins.zoom = ZOOM_CFG; }
+  return opts;
+}
+
+/* =========================================================
+   내장 샘플 (file:// 오프라인 폴백)
+   ========================================================= */
+const CONTAINER_DIURNAL = {
+  temp:[18.5,18.4,18.4,18.4,18.4,18.5,19.0,19.2,19.4,19.7,19.9,20.1,20.3,20.4,20.4,20.4,20.4,20.3,20.1,19.9,19.7,19.4,18.9,18.7],
+  hum: [99.7,99.7,99.7,99.7,99.7,99.7,99.6,99.6,99.6,99.6,99.6,99.6,99.6,99.6,99.6,99.6,99.6,99.6,99.6,99.6,99.6,99.6,99.7,99.7],
+  co2: [2050,2051,2052,2050,2051,2053,2008,2010,2009,2009,2007,2010,2010,2012,2010,2010,2008,2008,2010,2010,2007,2009,2049,2053],
+  ppfd:[0,0,0,0,0,0,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,0,0],
+};
+function containerSampleEnv(){
+  const {temp,hum,co2,ppfd}=CONTAINER_DIURNAL;
+  const hL=Array.from({length:24},(_,h)=>String(h).padStart(2,'0'));
+  const env={
+    hL, h_temp:temp.slice(), h_hum:hum.slice(), h_co2:co2.slice(), h_ppfd:ppfd.slice(),
+    rL:hL.map(h=>h+':00'), r_temp:temp.slice(), r_hum:hum.slice(), r_co2:co2.slice(), r_ppfd:ppfd.slice(),
+    r_vpd:temp.map((t,i)=>vpd(t,hum[i])),
+  };
+  // 상세추이 폴백: 3일치로 확장(드래그 체험용)
+  env.aL=[]; env.a_temp=[]; env.a_hum=[]; env.a_co2=[]; env.a_ppfd=[];
+  for(let d=1; d<=3; d++) for(let h=0; h<24; h++){
+    env.aL.push('1/'+d+' '+String(h).padStart(2,'0')+'시');
+    env.a_temp.push(temp[h]); env.a_hum.push(hum[h]); env.a_co2.push(co2[h]); env.a_ppfd.push(ppfd[h]);
+  }
+  return env;
+}
+function officeSampleEnv(){
+  return {
+    dL:Array.from({length:31},(_,i)=>'1/'+(i+1)),
+    ec_in:[1.75,1.73,1.72,1.70,1.69,1.67,1.66,1.65,1.63,1.62,1.60,1.58,1.57,1.55,1.53,1.51,1.49,1.48,1.46,1.44,1.43,1.41,1.40,1.38,1.37,1.36,1.34,1.33,1.31,1.29,1.28],
+    temp_in:[8.5,8.4,10.4,10.7,10.0,10.1,9.8,9.3,11.1,9.2,8.6,10.1,10.5,9.0,9.4,11.2,11.2,11.5,8.8,9.7,9.8,10.0,9.3,10.6,10.6,8.7,9.1,10.9,10.2,11.0,10.2],
+    ec_mt:[1.48,1.46,1.45,1.44,1.42,1.41,1.40,1.39,1.38,1.37,1.35,1.33,1.31,1.30,1.28,1.76,1.74,1.72,1.71,1.69,1.67,1.66,1.65,1.63,1.62,1.60,1.58,1.56,1.55,1.53,1.51],
+    temp_mt:[10.4,10.2,10.0,9.9,9.7,9.8,9.3,10.1,7.7,10.3,10.3,9.6,8.5,9.2,10.3,9.6,9.5,9.4,9.9,9.7,7.9,8.4,8.9,9.3,10.7,8.3,9.4,8.8,10.2,10.4,10.6],
+  };
+}
+
+/* =========================================================
+   시설별 로더
+   ========================================================= */
+async function loadContainer(site){
+  try{ site.env = aggregateContainer(await (await fetch(site.dataPath)).text()); site.fallback=false; }
+  catch(e){ console.warn('[컨테이너] CSV 로드 실패 — 내장 샘플:', e.message); site.env = containerSampleEnv(); site.fallback=true; }
+}
+/* 129,600행을 1회 순회하며 집계 (원본 행은 보관하지 않음) */
+function aggregateContainer(txt){
+  const lines = txt.split(/\r?\n/);
+  const hod = Array.from({length:24},()=>({t:0,hu:0,c:0,p:0,n:0}));  // 시간대(0–23) 평균
+  const hourly = new Map();                                          // 'YYYY-MM-DD HH' → 시간별 평균
+  for(let i=1;i<lines.length;i++){
+    const ln=lines[i]; if(!ln) continue;
+    const p=ln.split(','); if(p.length<5 || !p[0]) continue;
+    const t=+p[1], hu=+p[2], c=+p[3], pp=+p[4];
+    if(Number.isNaN(t)) continue;
+    const hh=+ln.slice(11,13);
+    const H=hod[hh]; H.t+=t; H.hu+=hu; H.c+=c; H.p+=pp; H.n++;
+    const hk=ln.slice(0,13);
+    let hb=hourly.get(hk); if(!hb){ hb={t:0,hu:0,c:0,p:0,n:0}; hourly.set(hk,hb); }
+    hb.t+=t; hb.hu+=hu; hb.c+=c; hb.p+=pp; hb.n++;
+  }
+  const env={};
+  // 일주기 (시간대별 평균)
+  env.hL=Array.from({length:24},(_,h)=>String(h).padStart(2,'0'));
+  env.h_temp=hod.map(H=>+(H.t/H.n).toFixed(1));
+  env.h_hum =hod.map(H=>+(H.hu/H.n).toFixed(1));
+  env.h_co2 =hod.map(H=>Math.round(H.c/H.n));
+  env.h_ppfd=hod.map(H=>Math.round(H.p/H.n));
+  // 상세추이 (전체 기간 · 1시간 평균 ≈ 2,160점)
+  const keys=[...hourly.keys()];
+  env.aL=keys.map(k=> (+k.slice(5,7))+'/'+(+k.slice(8,10))+' '+k.slice(11,13)+'시');
+  env.a_temp=[]; env.a_hum=[]; env.a_co2=[]; env.a_ppfd=[];
+  keys.forEach(k=>{ const b=hourly.get(k);
+    env.a_temp.push(+(b.t/b.n).toFixed(1)); env.a_hum.push(+(b.hu/b.n).toFixed(1));
+    env.a_co2.push(Math.round(b.c/b.n)); env.a_ppfd.push(Math.round(b.p/b.n)); });
+  // 최근 24시간 → 5분 평균(≈288점)
+  const tail=[];
+  for(let i=lines.length-1; i>=1 && tail.length<1440; i--){
+    const ln=lines[i]; if(ln && ln[0] && ln.split(',').length>=5) tail.push(ln);
+  }
+  tail.reverse();
+  const rL=[],rt=[],rhu=[],rc=[],rp=[],rv=[];
+  for(let i=0;i<tail.length;i+=5){
+    const grp=tail.slice(i,i+5).map(l=>l.split(',')); if(!grp.length) break;
+    const avg=idx=>grp.reduce((s,g)=>s+ +g[idx],0)/grp.length;
+    const t=+avg(1).toFixed(1), hu=+avg(2).toFixed(1), c=Math.round(avg(3)), pp=Math.round(avg(4));
+    rL.push(grp[0][0].slice(11,16)); rt.push(t); rhu.push(hu); rc.push(c); rp.push(pp); rv.push(vpd(t,hu));
+  }
+  env.rL=rL; env.r_temp=rt; env.r_hum=rhu; env.r_co2=rc; env.r_ppfd=rp; env.r_vpd=rv;
+  return env;
+}
+
+async function loadOffice(site){
+  try{
+    const lines = (await (await fetch(site.dataPath)).text()).split(/\r?\n/).filter(l=>l.trim());
+    // lines[0]=그룹 헤더, lines[1]=컬럼 헤더(date,ec,temp,ec,temp), 2행부터 데이터
+    const env={dL:[],ec_in:[],temp_in:[],ec_mt:[],temp_mt:[]};
+    for(let i=2;i<lines.length;i++){
+      const p=lines[i].split(','); if(!p[0]) continue;
+      env.dL.push(fmtMD(p[0])); env.ec_in.push(+p[1]); env.temp_in.push(+p[2]); env.ec_mt.push(+p[3]); env.temp_mt.push(+p[4]);
+    }
+    site.env = env; site.fallback=false;
+  }catch(e){ console.warn('[오피스] CSV 로드 실패 — 내장 샘플:', e.message); site.env = officeSampleEnv(); site.fallback=true; }
+}
+
+function parseCSV(text){
+  const [head, ...rows] = text.trim().split(/\r?\n/);
+  const cols = head.replace(/^﻿/,'').split(',').map(s=>s.trim());
+  return rows.filter(Boolean).map(line=>{
+    const cells = line.split(',');
+    return Object.fromEntries(cols.map((c,i)=>[c, cells[i]?.trim()]));
+  });
+}
+async function loadGeneric(site){
+  const env = JSON.parse(JSON.stringify(site.sample));
+  site.fallback=false;
+  try{
+    if(site.source?.hourly){
+      const r = parseCSV(await (await fetch(site.source.hourly)).text());
+      site.cols.hourly.forEach(c=> env[c] = r.map(x=> +x[c]));
+      if(r[0]?.timestamp) env.hours = r.map(x=> x.timestamp.slice(11,16));
+    }
+  }catch(e){ console.warn(`[${site.name}] CSV 로드 실패 — 내장 샘플:`, e.message); site.fallback=true; }
+  site.env = env;
+}
+
+async function loadSite(site){
+  if(site.env) return;
+  if(site.loader==='container') return loadContainer(site);
+  if(site.loader==='office')    return loadOffice(site);
+  return loadGeneric(site);
+}
+
+/* =========================================================
+   시설 레지스트리
+   ========================================================= */
+const SITES = {
+  /* ── 1) 컨테이너형 인도어팜 : 90일 · 1분 실데이터 ── */
+  container:{
+    id:'container', name:'컨테이너형 인도어팜', sub:'CONTAINER · IDF',
+    loader:'container', dataPath:'data/container/data.csv',
+    dsLabel:'CSV · 90일/1분 집계', readoutBack:12,
+    kpis:[
+      {key:'r_temp',label:'온도',unit:'°C',dec:1},
+      {key:'r_hum',label:'습도',unit:'%',dec:1},
+      {key:'r_co2',label:'CO₂',unit:'ppm',dec:0},
+      {key:'r_ppfd',label:'광량',unit:'%',dec:0},
+      {key:'r_vpd',label:'VPD',unit:'kPa',dec:2,warn:v=>v>1.5},
+    ],
+    views:[
+      {id:'overview',group:'모니터링',nav:'개요',icon:ICON.grid,title:'컨테이너 재배환경',crumb:'최근 24시간',cards:[
+        {type:'dual',w:'half',x:'rL',title:'최근 24시간 온도 · 습도',hint:'5분 평균',
+          left:{key:'r_temp',label:'온도',color:C.leaf,suffix:'°'},
+          right:{key:'r_hum',label:'습도',color:C.sky,suffix:'%',min:99,max:100},
+          legend:[{color:C.leaf,label:'온도(°C)'},{color:C.sky,label:'습도(%)'}]},
+        {type:'area',w:'half',x:'rL',title:'최근 24시간 CO₂',hint:'ppm',key:'r_co2',label:'CO₂',color:C.soil,
+          legend:[{color:C.soil,label:'CO₂(ppm)'}]},
+        {type:'note',html:'컨테이너 내부는 <code>data/container/data.csv</code>의 <strong>90일·1분 간격(약 13만 행)</strong> 데이터를 브라우저에서 집계해 표시합니다. 이 화면은 <strong>최근 24시간(5분 평균)</strong>이며, <em>상세 추이</em> 탭에서 전체 기간을 드래그·확대해 볼 수 있습니다. 습도는 99% 이상으로 포화에 가깝습니다.'},
+      ]},
+      {id:'detail',group:'모니터링',nav:'상세 추이',icon:ICON.trend,title:'상세 추이',crumb:'전체 90일 · 1시간 평균',cards:[
+        {type:'dual',w:'full',x:'aL',pan:true,title:'온도 · 습도 (전체 기간)',
+          left:{key:'a_temp',label:'온도',color:C.leaf,suffix:'°'},
+          right:{key:'a_hum',label:'습도',color:C.sky,suffix:'%',min:99,max:100},
+          legend:[{color:C.leaf,label:'온도(°C)'},{color:C.sky,label:'습도(%)'}]},
+        {type:'dual',w:'full',x:'aL',pan:true,title:'CO₂ · 광량 (전체 기간)',
+          left:{key:'a_co2',label:'CO₂',color:C.soil,suffix:''},
+          right:{key:'a_ppfd',label:'광량',color:C.amber,suffix:'%',min:0,max:100},
+          legend:[{color:C.soil,label:'CO₂(ppm)'},{color:C.amber,label:'광량(%)'}]},
+        {type:'note',html:'전체 90일을 <strong>1시간 평균(약 2,160점)</strong>으로 표시합니다. 그래프를 <strong>좌우로 드래그</strong>하면 이전 기간(일주일 전 등)으로 이동하고, <strong>마우스 휠 / 두 손가락</strong>으로 특정 날짜·주 구간을 확대할 수 있습니다. 우측 <em>리셋</em>으로 전체 보기로 돌아갑니다.'},
+      ]},
+      {id:'diurnal',group:'모니터링',nav:'일주기',icon:ICON.clock,title:'일주기 프로파일',crumb:'시간대별 평균(0–23시)',cards:[
+        {type:'dual',w:'half',x:'hL',title:'시간대별 평균 온도 · 습도',hint:'0–23시',
+          left:{key:'h_temp',label:'온도',color:C.leaf,suffix:'°'},
+          right:{key:'h_hum',label:'습도',color:C.sky,suffix:'%',min:99,max:100},
+          legend:[{color:C.leaf,label:'온도(°C)'},{color:C.sky,label:'습도(%)'}]},
+        {type:'dual',w:'half',x:'hL',title:'시간대별 CO₂ · 광량',hint:'0–23시',
+          left:{key:'h_co2',label:'CO₂',color:C.soil,suffix:''},
+          right:{key:'h_ppfd',label:'광량',color:C.amber,suffix:'%',min:0,max:100},
+          legend:[{color:C.soil,label:'CO₂(ppm)'},{color:C.amber,label:'광량(%)'}]},
+        {type:'note',html:'전체 90일을 시간대(0–23시)별로 평균낸 <strong>하루 패턴</strong>입니다. 광량은 06–21시 점등 구간에서 100% 부근이며, 그 시간대에 CO₂가 광합성으로 소폭 감소합니다.'},
+      ]},
+      {id:'source',group:'시스템',nav:'데이터 연동',icon:ICON.db,title:'데이터 연동',crumb:'데이터 소스 관리'},
+    ],
+  },
+
+  /* ── 2) 스마트 차압식 예냉기 : 더미 스냅샷 ── */
+  precooler:{
+    id:'precooler', name:'스마트 차압식 예냉기', sub:'PRECOOLER · DP',
+    loader:'generic', dataPath:'data/precooler/hourly.csv', dsLabel:'CSV 스냅샷', readoutBack:1,
+    source:{hourly:'data/precooler/hourly.csv'},
+    cols:{hourly:['chamber','core','humidity','dp']},
+    sample:{
+      hours:Array.from({length:24},(_,h)=>String(h).padStart(2,'0')+':00'),
+      chamber:[2.1,2.0,1.9,1.9,2.0,2.1,3.8,3.2,2.8,2.5,2.3,2.1,2.0,2.0,3.9,3.3,2.9,2.6,2.4,2.2,2.1,2.0,2.0,1.9],
+      core:[2.4,2.3,2.2,2.1,2.2,2.3,21.5,16.8,11.4,7.6,5.0,3.6,2.9,2.6,22.3,17.1,11.8,7.9,5.2,3.7,3.0,2.7,2.5,2.4],
+      humidity:[92,92,93,93,92,92,88,89,90,91,92,93,93,93,87,88,90,91,92,92,93,93,93,93],
+      dp:[95,92,90,88,90,92,158,152,146,138,122,108,98,94,160,153,147,139,124,110,100,95,92,90],
+    },
+    kpis:[
+      {key:'chamber',label:'고내온도',unit:'°C',dec:1},
+      {key:'core',label:'품온',unit:'°C',dec:1,warn:v=>v>10},
+      {key:'humidity',label:'습도',unit:'%',dec:0},
+      {key:'dp',label:'차압',unit:'Pa',dec:0},
+    ],
+    views:[
+      {id:'overview',group:'모니터링',nav:'개요',icon:ICON.grid,title:'차압식 예냉 모니터링',crumb:'개요',cards:[
+        {type:'multi',w:'half',x:'hours',title:'24시간 고내온도 · 품온 · 습도',hint:'1h 간격',suffix:'°',
+          lines:[{key:'chamber',label:'고내온도',color:C.sky},{key:'core',label:'품온',color:C.leaf}],
+          right:{key:'humidity',label:'습도',color:C.amber,suffix:'%',min:80,max:100},
+          legend:[{color:C.sky,label:'고내온도(°C)'},{color:C.leaf,label:'품온(°C)'},{color:C.amber,label:'습도(%)'}]},
+        {type:'area',w:'half',x:'hours',title:'24시간 차압',hint:'Pa',key:'dp',label:'차압',color:C.soil,suffix:' Pa',
+          legend:[{color:C.soil,label:'차압(Pa)'}]},
+        {type:'note',html:'<strong>예냉 상태:</strong> 06시·14시 신규 반입 시 품온이 급상승한 뒤 차압 송풍으로 빠르게 목표 온도까지 하강합니다. 데이터는 <code>data/precooler/hourly.csv</code> 스냅샷 기준이며, 더미 CSV를 교체하면 그대로 반영됩니다.'},
+      ]},
+      {id:'temp',group:'모니터링',nav:'온도·품온',icon:ICON.thermo,title:'온도 · 품온',crumb:'고내온도·품온',cards:[
+        {type:'multi',w:'full',x:'hours',pan:true,title:'24시간 고내온도 · 품온',suffix:'°',
+          lines:[{key:'chamber',label:'고내온도',color:C.sky,fill:true},{key:'core',label:'품온',color:C.leaf}],
+          legend:[{color:C.sky,label:'고내온도(°C)'},{color:C.leaf,label:'품온(°C)'}]},
+      ]},
+      {id:'pressure',group:'모니터링',nav:'차압',icon:ICON.gauge,title:'차압',crumb:'송풍 차압',cards:[
+        {type:'area',w:'full',x:'hours',pan:true,title:'24시간 차압',hint:'Pa · 송풍 세기 지표',key:'dp',label:'차압',color:C.soil,suffix:' Pa'},
+      ]},
+      {id:'source',group:'시스템',nav:'데이터 연동',icon:ICON.db,title:'데이터 연동',crumb:'데이터 소스 관리'},
+    ],
+  },
+
+  /* ── 3) 부천 사무실 수직농장 : 6개월 일별 · 두 위치 ── */
+  office:{
+    id:'office', name:'부천 사무실 수직농장', sub:'V-FARM · BUCHEON',
+    loader:'office', dataPath:'data/office/data.csv', dsLabel:'CSV · 6개월 일별', readoutBack:1,
+    kpis:[
+      {key:'ec_in',label:'안쪽 EC',unit:'mS/cm',dec:1},
+      {key:'temp_in',label:'안쪽 온도',unit:'°C',dec:1},
+      {key:'ec_mt',label:'회의실 EC',unit:'mS/cm',dec:1},
+      {key:'temp_mt',label:'회의실 온도',unit:'°C',dec:1},
+    ],
+    views:[
+      {id:'overview',group:'모니터링',nav:'개요',icon:ICON.grid,title:'수직농장 모니터링',crumb:'두 지점 · 6개월',cards:[
+        {type:'multi',w:'half',x:'dL',title:'EC 추이 (두 위치)',hint:'일별 · 6개월',suffix:'',
+          lines:[{key:'ec_in',label:'안쪽',color:C.leaf},{key:'ec_mt',label:'회의실',color:C.sky}],
+          legend:[{color:C.leaf,label:'안쪽 사무실'},{color:C.sky,label:'회의실 앞'}]},
+        {type:'multi',w:'half',x:'dL',title:'온도 추이 (두 위치)',hint:'일별 · 6개월',suffix:'°',
+          lines:[{key:'temp_in',label:'안쪽',color:C.leaf},{key:'temp_mt',label:'회의실',color:C.sky}],
+          legend:[{color:C.leaf,label:'안쪽 사무실'},{color:C.sky,label:'회의실 앞'}]},
+        {type:'note',html:'부천 사무실 두 지점(<strong>안쪽 사무실 · 회의실 앞</strong>)의 EC·온도를 <code>data/office/data.csv</code>에서 읽어 표시합니다. EC는 양액 교체 주기에 따라 톱니 모양으로 오르내리고, 온도는 겨울→여름에 걸쳐 상승합니다. 상세 탭에서 드래그·확대로 특정 구간을 볼 수 있습니다.'},
+      ]},
+      {id:'ec',group:'모니터링',nav:'EC',icon:ICON.bolt,title:'EC 추이',crumb:'양액 전기전도도',cards:[
+        {type:'multi',w:'full',x:'dL',pan:true,title:'EC 추이 (안쪽 · 회의실)',suffix:'',
+          lines:[{key:'ec_in',label:'안쪽',color:C.leaf,fill:true},{key:'ec_mt',label:'회의실',color:C.sky}],
+          legend:[{color:C.leaf,label:'안쪽 사무실'},{color:C.sky,label:'회의실 앞'}]},
+      ]},
+      {id:'temp',group:'모니터링',nav:'온도',icon:ICON.thermo,title:'온도 추이',crumb:'실내 온도',cards:[
+        {type:'multi',w:'full',x:'dL',pan:true,title:'온도 추이 (안쪽 · 회의실)',suffix:'°',
+          lines:[{key:'temp_in',label:'안쪽',color:C.leaf,fill:true},{key:'temp_mt',label:'회의실',color:C.sky}],
+          legend:[{color:C.leaf,label:'안쪽 사무실'},{color:C.sky,label:'회의실 앞'}]},
+      ]},
+      {id:'source',group:'시스템',nav:'데이터 연동',icon:ICON.db,title:'데이터 연동',crumb:'데이터 소스 관리'},
+    ],
+  },
+};
+
+let activeSite = 'container';
+let activeView = 'overview';
+
+/* ================= 차트 빌더 ================= */
+const charts = {};
+function clearCharts(){ Object.keys(charts).forEach(k=>{ charts[k].destroy?.(); delete charts[k]; }); }
+
+function makeChart(el, card, env){
+  const L = env[card.x || 'hours'];
+
+  if(card.type==='dual'){
+    const opts=baseOpts({scales:{
+      x:{grid:{display:false},ticks:{maxTicksLimit:8}},
+      y:{position:'left',grid,ticks:{callback:suffixCb(card.left.suffix||'')}},
+      y1:{position:'right',grid:{display:false},min:card.right.min,max:card.right.max,ticks:{callback:suffixCb(card.right.suffix||'')}}
+    }});
+    return new Chart(el,{type:'line',
+      data:{labels:L, datasets:[
+        line(card.left.label, env[card.left.key], card.left.color,'y', !!card.left.fill),
+        line(card.right.label, env[card.right.key], card.right.color,'y1')
+      ]}, options:addZoom(opts,card)});
+  }
+
+  if(card.type==='multi'){
+    const ds = card.lines.map(s=> line(s.label, env[s.key], s.color,'y', !!s.fill));
+    const scales = { x:{grid:{display:false},ticks:{maxTicksLimit:8}},
+      y:{position:'left',grid,ticks:{callback:suffixCb(card.suffix||'')}} };
+    if(card.right){
+      ds.push(line(card.right.label, env[card.right.key], card.right.color,'y1'));
+      scales.y1 = {position:'right',grid:{display:false},min:card.right.min,max:card.right.max,ticks:{callback:suffixCb(card.right.suffix||'')}};
+    }
+    return new Chart(el,{type:'line',data:{labels:L,datasets:ds},options:addZoom(baseOpts({scales}),card)});
+  }
+
+  if(card.type==='area'){
+    const opts=baseOpts({scales:{x:{grid:{display:false},ticks:{maxTicksLimit:8}}, y:{grid,min:card.min,ticks:{callback:suffixCb(card.suffix||'')}}}});
+    return new Chart(el,{type:'line',
+      data:{labels:L, datasets:[line(card.label, env[card.key], card.color,'y',true)]},
+      options:addZoom(opts,card)});
+  }
+}
+
+/* ================= DOM 렌더링 ================= */
+function renderNav(){
+  const site = SITES[activeSite]; let html=''; let last=null;
+  site.views.forEach(v=>{
+    if(v.group!==last){ html += `<div class="nav-label">${v.group}</div>`; last=v.group; }
+    html += `<button class="nav-item" data-view="${v.id}">${v.icon}<span>${v.nav}</span></button>`;
+  });
+  document.getElementById('nav').innerHTML = html;
+}
+
+function legendHTML(items){
+  if(!items) return '';
+  return `<div class="legend">${items.map(l=>`<span><i class="swatch" style="background:${l.color}"></i>${l.label}</span>`).join('')}</div>`;
+}
+function cardHTML(card, id){
+  const right = card.pan
+    ? `<span class="chart-tools"><span class="hint">드래그·휠 확대</span><button class="zoom-reset" data-reset="${id}" type="button">리셋</button></span>`
+    : (card.hint?`<span class="hint">${card.hint}</span>`:'');
+  return `<div class="card tall"><h3><span>${card.title}</span>${right}</h3><div class="cwrap"><canvas id="${id}"></canvas></div>${legendHTML(card.legend)}</div>`;
+}
+function sourceHTML(site){
+  const rows = site.kpis.map(k=>
+    `<tr><td>${k.label}</td><td><span class="badge gray">CSV</span></td><td>동일 컬럼 CSV 교체 또는 REST 응답</td></tr>`
+  ).join('');
+  return `<div class="page-title">데이터 연동 · ${site.name}</div>
+    <p class="page-desc">이 시설의 데이터 소스와 실측 전환 경로입니다.</p>
+    <div class="card"><table class="src-table">
+      <thead><tr><th>항목</th><th>현재</th><th>실측 연결 방법</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="note" style="margin-top:18px"><strong>데이터 위치:</strong> <code>${site.dataPath}</code>. 시설별 데이터는 <code>data/${site.id}/</code> 아래에 분리되어 있고, 로고 등 정적 자원은 <code>assets/</code>에 있습니다.</div>
+    <div class="note" style="margin-top:14px;background:var(--paper);border-color:var(--line);color:var(--ink)"><strong>로컬 테스트:</strong> 더블클릭(file://)으로 열면 CSV fetch가 막혀 내장 샘플로 표시됩니다. 실측 CSV 확인은 <code>python -m http.server 8000</code> 실행 후 접속하거나 배포본에서 확인하세요.</div>`;
+}
+
+let pending = [];
+function layoutCards(cards, vid){
+  let html=''; let i=0;
+  while(i<cards.length){
+    const c = cards[i];
+    if(c.type==='note'){ html += `<div style="margin-top:${i?18:0}px"><div class="note">${c.html}</div></div>`; i++; continue; }
+    if(c.w==='half' && cards[i+1] && cards[i+1].w==='half' && cards[i+1].type!=='note'){
+      const id1=`ch_${vid}_${i}`, id2=`ch_${vid}_${i+1}`;
+      html += `<div class="grid g2" style="margin-top:${i?18:0}px">${cardHTML(cards[i],id1)}${cardHTML(cards[i+1],id2)}</div>`;
+      pending.push({id:id1,card:cards[i]},{id:id2,card:cards[i+1]});
+      i+=2;
+    } else {
+      const id=`ch_${vid}_${i}`;
+      html += `<div style="margin-top:${i?18:0}px">${cardHTML(c,id)}</div>`;
+      pending.push({id,card:c}); i++;
+    }
+  }
+  return html;
+}
+
+function renderContent(site){
+  pending = [];
+  const banner = site.fallback
+    ? `<div class="banner">지금은 <b>내장 샘플 데이터(1월 일부)</b>로 표시 중입니다. 파일을 더블클릭(<code>file://</code>)으로 열면 브라우저 보안 때문에 CSV를 못 읽어 이렇게 됩니다. <b>전체 실측 데이터</b>는 <code>http://localhost:8000</code> 같은 로컬 서버나 배포본(Netlify 등)에서 열면 나옵니다.</div>`
+    : '';
+  let html = banner + `<div class="readout" id="readout"></div>`;
+  site.views.forEach(v=>{
+    html += `<section class="view" data-view="${v.id}">`;
+    html += v.id==='source' ? sourceHTML(site) : layoutCards(v.cards, v.id);
+    html += `</section>`;
+  });
+  document.getElementById('content').innerHTML = html;
+}
+
+function buildCharts(env){
+  clearCharts();
+  pending.forEach(p=>{ const el=document.getElementById(p.id); if(el) charts[p.id]=makeChart(el,p.card,env); });
+  pending = [];
+}
+
+/* ================= KPI 판독 스트립 ================= */
+function renderReadout(){
+  const site=SITES[activeSite], env=site.env, kpis=site.kpis, back=site.readoutBack||1;
+  document.getElementById('readout').innerHTML = kpis.map(it=>{
+    const arr=env[it.key]||[], n=arr.length;
+    const cur=arr[n-1], prev=arr[Math.max(0,n-1-back)];
+    const d = (+cur) - (+prev);
+    const dir = Math.abs(d)<0.05 ? 'flat' : d>0?'up':'down';
+    const arrow = dir==='flat'?'―':d>0?'▲':'▼';
+    const warn = it.warn ? it.warn(+cur) : false;
+    const dd = dir==='flat' ? 0 : (it.dec>0?it.dec:1);
+    return `<div class="cell" data-k="${it.key}">
+      <div class="k"><span class="tick ${warn?'warn':''}"></span>${it.label}</div>
+      <div class="v">${fmtNum(cur,it.dec)}<span class="u">${it.unit}</span></div>
+      <div class="d ${dir}">${arrow} ${Math.abs(d).toFixed(dd)} <span style="color:var(--haze)">직전 대비</span></div>
+    </div>`;
+  }).join('');
+}
+
+/* ================= 네비게이션 / 라우팅 ================= */
+function go(view){
+  const site = SITES[activeSite];
+  const v = site.views.find(x=>x.id===view) || site.views[0];
+  activeView = v.id;
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active', b.dataset.view===v.id));
+  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active', s.dataset.view===v.id));
+  document.getElementById('topTitle').textContent = v.title;
+  document.getElementById('topCrumb').textContent = `EVE Clever / ${site.name} / ${v.crumb}`;
+  const readout=document.getElementById('readout'); if(readout) readout.style.display = v.id==='source' ? 'none' : 'grid';
+  closeSidebar();
+  renderReadout();
+  Object.values(charts).forEach(c=> c.resize && c.resize());
+}
+
+/* ================= 시설 전환 ================= */
+async function switchSite(id){
+  activeSite = id;
+  clearCharts();
+  const site = SITES[id];
+  document.getElementById('content').innerHTML = `<div class="loading"><span class="dot"></span> 데이터 불러오는 중…</div>`;
+  await loadSite(site);
+
+  document.getElementById('brandSub').textContent = site.sub;
+  document.getElementById('dsLabel').textContent = site.fallback ? '내장 샘플(오프라인)' : site.dsLabel;
+  const sel = document.getElementById('siteSel'); if(sel.value!==id) sel.value=id;
+
+  renderNav();
+  renderContent(site);
+  buildCharts(site.env);
+  go(site.views[0].id);
+}
+
+/* ================= UI 이벤트 ================= */
+function buildSiteSelect(){
+  const sel = document.getElementById('siteSel');
+  sel.innerHTML = Object.values(SITES).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  sel.value = activeSite;
+  sel.addEventListener('change', e=> switchSite(e.target.value));
+}
+document.getElementById('nav').addEventListener('click', e=>{
+  const btn=e.target.closest('.nav-item'); if(btn) go(btn.dataset.view);
+});
+/* 그래프 리셋 버튼 (드래그/확대 원위치) */
+document.getElementById('content').addEventListener('click', e=>{
+  const b=e.target.closest('.zoom-reset'); if(b){ charts[b.dataset.reset]?.resetZoom?.(); }
+});
+
+/* 모바일 사이드바 */
+const sb=document.getElementById('sidebar'), scrim=document.getElementById('scrim');
+function closeSidebar(){ sb.classList.remove('open'); scrim.classList.remove('show'); }
+document.getElementById('menuBtn').onclick=()=>{ sb.classList.add('open'); scrim.classList.add('show'); };
+scrim.onclick=closeSidebar;
+
+/* 시계 */
+function tick(){
+  const n=new Date();
+  document.getElementById('clock').textContent = n.toLocaleTimeString('ko-KR',{hour12:false});
+  document.getElementById('stamp').textContent = '데이터 기준: '+n.toLocaleDateString('ko-KR');
+}
+
+/* ================= 부팅 ================= */
+(async function(){
+  buildSiteSelect();
+  await switchSite(activeSite);
+  tick(); setInterval(tick,1000);
+})();
+</script>
+</body>
+</html>
