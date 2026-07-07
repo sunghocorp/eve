@@ -204,6 +204,47 @@
   @media(prefers-reduced-motion:reduce){
     *{animation-duration:.001ms!important;transition-duration:.001ms!important}
   }
+
+  /* ===== 상단 도메인 탭 ===== */
+  .tb-left{display:flex;align-items:center;gap:12px;min-width:0}
+  .domain-tabs{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:3px}
+  .domain-tab{display:inline-flex;align-items:center;gap:8px;padding:8px 15px;border:none;background:none;cursor:pointer;border-radius:8px;font-family:var(--font-kr);font-size:14.3px;font-weight:500;color:var(--haze);transition:color .15s,background .15s;white-space:nowrap}
+  .domain-tab .ico{width:17px;height:17px;stroke:currentColor;fill:none}
+  .domain-tab:hover{color:var(--ink)}
+  .domain-tab.active{background:var(--mist);color:var(--leaf);font-weight:600;box-shadow:var(--shadow)}
+  .domain-tab:focus-visible{outline:2px solid var(--leaf);outline-offset:2px}
+
+  /* ===== 로봇: 카메라 ===== */
+  .cam-card{background:#0d1512;border:1px solid #223029;border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+  .cam-head{display:flex;align-items:center;gap:12px;padding:12px 16px;color:#e9efe9;font-size:14.3px;font-family:var(--font-mono);background:#111c18;border-bottom:1px solid rgba(255,255,255,.06)}
+  .cam-head .spacer{flex:1}
+  .live-badge{display:inline-flex;align-items:center;gap:7px;color:#ff5a52;font-weight:600;letter-spacing:.04em}
+  .live-badge .dot{width:9px;height:9px;border-radius:50%;background:#ff5a52;animation:pulse 1.4s infinite}
+  .cam-stage{position:relative;aspect-ratio:16/9;background:#0d1512;overflow:hidden}
+  .cam-stage video{width:100%;height:100%;object-fit:cover;display:block}
+  .cam-scan{position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,rgba(120,220,170,.55),transparent);animation:scan 4s linear infinite;pointer-events:none}
+  @keyframes scan{0%{top:0}100%{top:100%}}
+  .cam-fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:24px;color:#9fb0a6;font-size:14.3px;line-height:1.7}
+  .cam-fallback code{font-family:var(--font-mono);background:rgba(255,255,255,.08);padding:2px 6px;border-radius:5px;color:#cfe0d5}
+
+  /* ===== 로봇: 통합 관제 ===== */
+  .robot-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:18px;margin-top:2px}
+  .robot-photo{background:var(--mist);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+  .robot-photo .imgwrap{flex:1;display:flex;align-items:center;justify-content:center;min-height:230px;background:linear-gradient(180deg,#f3f6f2,#e8efe6);border-radius:10px;overflow:hidden;padding:12px}
+  .robot-photo img{max-width:100%;max-height:300px;object-fit:contain}
+  .robot-photo .ph{color:var(--haze);font-size:14.3px;text-align:center;line-height:1.7}
+  .robot-photo .ph code{font-family:var(--font-mono);background:var(--paper);padding:2px 6px;border-radius:5px}
+  .robot-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
+  .robot-meta .name{font-weight:700;font-size:16.9px}
+  .robot-meta .model{font-family:var(--font-mono);font-size:13px;color:var(--haze);margin-top:2px}
+  .status-badge{display:inline-flex;align-items:center;gap:7px;font-size:13.7px;font-weight:600;color:var(--leaf);background:var(--leaf-soft);padding:6px 12px;border-radius:20px;white-space:nowrap}
+  .status-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--leaf);animation:pulse 2s infinite}
+  .map-card{background:var(--mist);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+  .farm-map{width:100%;height:auto;display:block;border-radius:10px}
+  .batt-bar{height:9px;background:var(--line);border-radius:6px;overflow:hidden}
+  .batt-fill{height:100%;border-radius:6px;transition:width .6s,background .6s}
+  @media(max-width:860px){ .robot-grid{grid-template-columns:1fr} .domain-tab{padding:8px 11px} }
+  @media(max-width:560px){ .clockbox{display:none} }
 </style>
 </head>
 <body>
@@ -224,7 +265,7 @@
     </div>
 
     <!-- 시설 선택 -->
-    <div class="site-pick">
+    <div class="site-pick" id="sitePick">
       <label class="nav-label" for="siteSel" style="padding:0 0 6px 2px;display:block">시설 선택</label>
       <div class="select-wrap">
         <select id="siteSel" aria-label="시설 선택"></select>
@@ -249,14 +290,11 @@
   <!-- Main -->
   <div class="main">
     <header class="topbar">
-      <div style="display:flex;align-items:center;gap:12px;min-width:0">
+      <div class="tb-left">
         <button class="menu-btn" id="menuBtn" aria-label="메뉴 열기">
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
-        <div style="min-width:0">
-          <h1 id="topTitle">재배환경 모니터링</h1>
-          <div class="crumb" id="topCrumb">EVE</div>
-        </div>
+        <div class="domain-tabs" id="domainTabs"></div>
       </div>
       <div class="clockbox">
         <div class="clock" id="clock">--:--:--</div>
@@ -300,6 +338,9 @@ const ICON = {
   trend:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg>`,
   clock:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>`,
   db:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>`,
+  leaf:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 20v-7M12 13c-4 0-7-2-7-7 4 0 7 2 7 7zM12 11c0-3 2-5 6-5 0 3-2 5-6 5z"/></svg>`,
+  robot:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="5" y="8" width="14" height="10" rx="2"/><path d="M12 8V5M9 5h6M3 12v3M21 12v3"/><circle cx="9.5" cy="13" r="1"/><circle cx="14.5" cy="13" r="1"/></svg>`,
+  cam:`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></svg>`,
 };
 
 /* ================= 차트 색 / 공통 헬퍼 ================= */
@@ -652,8 +693,9 @@ function makeChart(el, card, env){
 
 /* ================= DOM 렌더링 ================= */
 function renderNav(){
-  const site = SITES[activeSite]; let html=''; let last=null;
-  site.views.forEach(v=>{
+  const views = activeDomain==='robot' ? ROBOT.views : SITES[activeSite].views;
+  let html=''; let last=null;
+  views.forEach(v=>{
     if(v.group!==last){ html += `<div class="nav-label">${v.group}</div>`; last=v.group; }
     html += `<button class="nav-item" data-view="${v.id}">${v.icon}<span>${v.nav}</span></button>`;
   });
@@ -749,8 +791,6 @@ function go(view){
   activeView = v.id;
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active', b.dataset.view===v.id));
   document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active', s.dataset.view===v.id));
-  document.getElementById('topTitle').textContent = v.title;
-  document.getElementById('topCrumb').textContent = `EVE / ${site.name} / ${v.crumb}`;
   const readout=document.getElementById('readout'); if(readout) readout.style.display = v.id==='source' ? 'none' : 'grid';
   closeSidebar();
   renderReadout();
@@ -782,7 +822,8 @@ function buildSiteSelect(){
   sel.addEventListener('change', e=> switchSite(e.target.value));
 }
 document.getElementById('nav').addEventListener('click', e=>{
-  const btn=e.target.closest('.nav-item'); if(btn) go(btn.dataset.view);
+  const btn=e.target.closest('.nav-item'); if(!btn) return;
+  if(activeDomain==='robot') goRobot(btn.dataset.view); else go(btn.dataset.view);
 });
 /* 그래프 리셋 버튼 (드래그/확대 원위치) */
 document.getElementById('content').addEventListener('click', e=>{
@@ -816,14 +857,169 @@ document.addEventListener('webkitfullscreenchange', updateFsState);
 /* 시계 */
 function tick(){
   const n=new Date();
-  document.getElementById('clock').textContent = n.toLocaleTimeString('ko-KR',{hour12:false});
+  const t=n.toLocaleTimeString('ko-KR',{hour12:false});
+  document.getElementById('clock').textContent = t;
   document.getElementById('stamp').textContent = '데이터 기준: '+n.toLocaleDateString('ko-KR');
+  const cc=document.getElementById('camClock'); if(cc) cc.textContent = t;
+}
+
+/* =========================================================
+   로봇 관제 도메인 (신규)
+   ─ 카메라: data/robot/camera.mp4 재생 (없으면 안내)
+   ─ 통합 관제: 로봇 이미지 + 농장맵 위치 + 배터리·상태(시연용 모의 텔레메트리)
+   ========================================================= */
+let activeDomain = 'farm';
+
+const ROBOT = {
+  name:'농업 로봇 1호', model:'SUNGHO-RS AGRI',
+  cameraSrc:'data/robot/camera.mp4', image:'assets/robot.png',
+  views:[
+    {id:'camera',  group:'로봇 관제', nav:'실시간 카메라', icon:ICON.cam},
+    {id:'control', group:'로봇 관제', nav:'통합 관제',   icon:ICON.gauge},
+  ],
+};
+const ROBOT_STATUS=['자율주행 중','작물 스캔 중','병해충 탐지','구역 이동 중'];
+const ROBOT_PATH=[{x:.14,y:.28},{x:.52,y:.28},{x:.52,y:.62},{x:.86,y:.62},{x:.86,y:.84},{x:.2,y:.84},{x:.14,y:.5}];
+const robot={battery:87, speed:0.8, signal:94, temp:34, statusIdx:0, wpi:0, x:.14, y:.5, up:126};
+let robotTimer=null;
+
+function buildDomainTabs(){
+  const tabs=[{d:'farm',label:'농장 모니터링',icon:ICON.leaf},{d:'robot',label:'로봇 관제',icon:ICON.robot}];
+  document.getElementById('domainTabs').innerHTML = tabs.map(t=>
+    `<button class="domain-tab${t.d===activeDomain?' active':''}" data-domain="${t.d}" type="button">${t.icon}<span>${t.label}</span></button>`).join('');
+}
+
+async function switchDomain(d){
+  activeDomain=d;
+  document.querySelectorAll('.domain-tab').forEach(b=>b.classList.toggle('active', b.dataset.domain===d));
+  const sitePick=document.getElementById('sitePick');
+  if(d==='robot'){
+    stopRobot(); clearCharts();
+    sitePick.style.display='none';
+    document.getElementById('dsLabel').textContent='로봇 관제 · 시연';
+    renderNav();
+    renderRobotContent();
+    goRobot(ROBOT.views[0].id);
+  }else{
+    stopRobot();
+    sitePick.style.display='';
+    await switchSite(activeSite);
+  }
+}
+
+/* ---- 렌더 ---- */
+function renderRobotContent(){
+  document.getElementById('content').innerHTML =
+    `<section class="view" data-view="camera">${cameraHTML()}</section>
+     <section class="view" data-view="control">${controlHTML()}</section>`;
+  const v=document.getElementById('camVideo');
+  if(v){
+    v.addEventListener('error', showCamFallback, true);
+    v.addEventListener('loadeddata', ()=>{ const f=document.getElementById('camFallback'); if(f) f.style.display='none'; });
+  }
+}
+function cameraHTML(){
+  return `<div class="cam-card">
+    <div class="cam-head"><span class="live-badge"><span class="dot"></span> LIVE</span><span>${ROBOT.name} · 전방 카메라</span><span class="spacer"></span><span id="camClock">--:--:--</span></div>
+    <div class="cam-stage">
+      <video id="camVideo" src="${ROBOT.cameraSrc}" autoplay muted loop playsinline></video>
+      <div class="cam-scan"></div>
+      <div class="cam-fallback" id="camFallback">카메라 영상 준비 중<span style="opacity:.8">로봇 영상 파일을 <code>${ROBOT.cameraSrc}</code> 에 올리면 여기에 표시됩니다.</span></div>
+    </div>
+  </div>
+  <div class="note" style="margin-top:18px">로봇 전방 카메라 실시간 스트림입니다. 실측 연동 시 이 <code>video</code> 소스를 RTSP→HLS(.m3u8) 변환 스트림이나 WebRTC로 교체하면 됩니다.</div>`;
+}
+function showCamFallback(){ const f=document.getElementById('camFallback'); if(f) f.style.display='flex'; }
+
+function controlHTML(){
+  return `<div class="readout" id="robotReadout"></div>
+   <div class="robot-grid">
+     <div class="robot-photo">
+       <div class="imgwrap">
+         <img src="${ROBOT.image}" alt="${ROBOT.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+         <div class="ph" style="display:none">로봇 이미지 준비 중<br><span style="opacity:.8">이미지를 <code>${ROBOT.image}</code> 에 올리면 표시됩니다.</span></div>
+       </div>
+       <div class="robot-meta">
+         <div><div class="name">${ROBOT.name}</div><div class="model">${ROBOT.model}</div></div>
+         <span class="status-badge"><span class="dot"></span><span id="rStatus">가동 중</span></span>
+       </div>
+     </div>
+     <div class="map-card">
+       <h3 style="font-size:17.6px;font-weight:600;margin-bottom:12px">농장 내 위치</h3>
+       ${mapSVG()}
+       <div class="legend" style="margin-top:12px"><span><i style="width:9px;height:9px;border-radius:50%;background:#256B4E;display:inline-block"></i>로봇 현재 위치</span><span><i class="swatch" style="background:#b9c3ba"></i>이동 경로</span></div>
+     </div>
+   </div>`;
+}
+function mapSVG(){
+  const F={x:6,y:6,w:88,h:52};
+  const pts=ROBOT_PATH.map(p=>`${(F.x+p.x*F.w).toFixed(1)},${(F.y+p.y*F.h).toFixed(1)}`).join(' ');
+  let beds=''; for(let i=1;i<6;i++){ const gx=(F.x+F.w*i/6).toFixed(1); beds+=`<line x1="${gx}" y1="${F.y}" x2="${gx}" y2="${F.y+F.h}" stroke="#d5e0d3" stroke-width=".5"/>`; }
+  return `<svg class="farm-map" viewBox="0 0 100 64" role="img" aria-label="농장 맵과 로봇 위치">
+    <rect x="${F.x}" y="${F.y}" width="${F.w}" height="${F.h}" rx="3" fill="#e7efe4" stroke="#cbd8c6" stroke-width=".6"/>
+    ${beds}
+    <polyline points="${pts}" fill="none" stroke="#b9c3ba" stroke-width=".8" stroke-dasharray="2 2"/>
+    <g id="robotMarker" transform="translate(${(F.x+robot.x*F.w).toFixed(1)} ${(F.y+robot.y*F.h).toFixed(1)})">
+      <circle r="4" fill="rgba(37,107,78,.18)"><animate attributeName="r" values="4;7.5;4" dur="2s" repeatCount="indefinite"/></circle>
+      <circle r="2.6" fill="#256B4E" stroke="#fff" stroke-width="1"/>
+    </g>
+  </svg>`;
+}
+
+/* ---- 라우팅 / 텔레메트리 ---- */
+function goRobot(view){
+  const v=ROBOT.views.find(x=>x.id===view)||ROBOT.views[0];
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active', b.dataset.view===v.id));
+  document.querySelectorAll('#content .view').forEach(s=>s.classList.toggle('active', s.dataset.view===v.id));
+  closeSidebar();
+  const cam=document.getElementById('camVideo');
+  if(v.id==='camera'){ if(cam) cam.play?.().catch(()=>{}); }
+  else if(cam){ cam.pause?.(); }
+  if(v.id==='control'){ renderRobotReadout(); updateMarker(); startRobot(); }
+  else stopRobot();
+}
+function startRobot(){ if(!robotTimer) robotTimer=setInterval(robotTick,2000); }
+function stopRobot(){ if(robotTimer){ clearInterval(robotTimer); robotTimer=null; } }
+function robotTick(){
+  const wp=ROBOT_PATH[robot.wpi];
+  const dx=wp.x-robot.x, dy=wp.y-robot.y, dist=Math.hypot(dx,dy), step=0.05;
+  if(dist<step){ robot.x=wp.x; robot.y=wp.y; robot.wpi=(robot.wpi+1)%ROBOT_PATH.length; robot.statusIdx=(robot.statusIdx+1)%ROBOT_STATUS.length; }
+  else { robot.x+=dx/dist*step; robot.y+=dy/dist*step; }
+  robot.battery=+Math.max(12, robot.battery-0.2).toFixed(1);
+  robot.speed=+(0.6+Math.random()*0.6).toFixed(1);
+  robot.signal=Math.round(89+Math.random()*9);
+  robot.temp=+(33+Math.random()*3).toFixed(1);
+  robot.up+=1;
+  renderRobotReadout(); updateMarker();
+}
+function updateMarker(){
+  const g=document.getElementById('robotMarker'); if(!g) return;
+  g.setAttribute('transform',`translate(${(6+robot.x*88).toFixed(1)} ${(6+robot.y*52).toFixed(1)})`);
+}
+function renderRobotReadout(){
+  const el=document.getElementById('robotReadout'); if(!el) return;
+  const st=ROBOT_STATUS[robot.statusIdx];
+  const s=document.getElementById('rStatus'); if(s) s.textContent=st;
+  const bcol = robot.battery>40?'var(--leaf)':robot.battery>20?'var(--amber)':'var(--danger)';
+  const upH=Math.floor(robot.up/60), upM=robot.up%60;
+  el.innerHTML = [
+    `<div class="cell"><div class="k">배터리</div><div class="v">${Math.round(robot.battery)}<span class="u">%</span></div><div class="batt-bar" style="margin-top:9px"><div class="batt-fill" style="width:${robot.battery}%;background:${bcol}"></div></div></div>`,
+    `<div class="cell"><div class="k">상태</div><div class="v" style="font-size:19.5px">${st}</div></div>`,
+    `<div class="cell"><div class="k">주행 속도</div><div class="v">${robot.speed}<span class="u">m/s</span></div></div>`,
+    `<div class="cell"><div class="k">통신 신호</div><div class="v">${robot.signal}<span class="u">%</span></div></div>`,
+    `<div class="cell"><div class="k">구동부 온도</div><div class="v">${robot.temp}<span class="u">°C</span></div></div>`,
+    `<div class="cell"><div class="k">가동 시간</div><div class="v">${upH}<span class="u">시간</span> ${upM}<span class="u">분</span></div></div>`,
+  ].join('');
 }
 
 /* ================= 부팅 ================= */
 (async function(){
   buildSiteSelect();
-  await switchSite(activeSite);
+  buildDomainTabs();
+  document.getElementById('domainTabs').addEventListener('click', e=>{
+    const b=e.target.closest('.domain-tab'); if(b && b.dataset.domain!==activeDomain) switchDomain(b.dataset.domain);
+  });
+  await switchSite(activeSite);          // 기본 도메인: 농장 모니터링
   tick(); setInterval(tick,1000);
 })();
 </script>
