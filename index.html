@@ -227,23 +227,29 @@
   .cam-fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:24px;color:#9fb0a6;font-size:14.3px;line-height:1.7}
   .cam-fallback code{font-family:var(--font-mono);background:rgba(255,255,255,.08);padding:2px 6px;border-radius:5px;color:#cfe0d5}
 
-  /* ===== 로봇: 통합 관제 ===== */
-  .robot-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:18px;margin-top:2px}
-  .robot-photo{background:var(--mist);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column}
-  .robot-photo .imgwrap{flex:1;display:flex;align-items:center;justify-content:center;min-height:230px;background:linear-gradient(180deg,#f3f6f2,#e8efe6);border-radius:10px;overflow:hidden;padding:12px}
-  .robot-photo img{max-width:100%;max-height:300px;object-fit:contain}
-  .robot-photo .ph{color:var(--haze);font-size:14.3px;text-align:center;line-height:1.7}
-  .robot-photo .ph code{font-family:var(--font-mono);background:var(--paper);padding:2px 6px;border-radius:5px}
-  .robot-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
-  .robot-meta .name{font-weight:700;font-size:16.9px}
-  .robot-meta .model{font-family:var(--font-mono);font-size:13px;color:var(--haze);margin-top:2px}
+  /* ===== 로봇: 통합 관제 (편대 3대) ===== */
+  .fleet-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .robot-card{background:var(--mist);border:1px solid var(--line);border-top:3px solid var(--rc,var(--leaf));border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+  .rc-head{display:flex;align-items:center;gap:12px}
+  .rc-thumb{width:46px;height:60px;flex:none;border-radius:9px;background:linear-gradient(180deg,#f3f6f2,#e8efe6);display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .rc-thumb img{max-width:100%;max-height:100%;object-fit:contain}
+  .rc-title{flex:1;min-width:0}
+  .rc-title .name{font-weight:700;font-size:15.6px}
+  .rc-title .model{font-family:var(--font-mono);font-size:12px;color:var(--haze);margin-top:1px}
+  .rc-batt{display:flex;align-items:center;gap:10px;margin-top:14px}
+  .rc-batt .batt-bar{flex:1}
+  .rc-pct{font-family:var(--font-mono);font-weight:600;font-size:14.3px;min-width:40px;text-align:right}
+  .rc-metrics{display:grid;grid-template-columns:1fr 1fr;gap:7px 16px;margin-top:14px;font-size:13px;color:var(--haze)}
+  .rc-metrics>div{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border-bottom:1px solid var(--line);padding-bottom:5px}
+  .rc-metrics b{font-family:var(--font-mono);font-weight:600;color:var(--ink);font-size:14.3px}
   .status-badge{display:inline-flex;align-items:center;gap:7px;font-size:13.7px;font-weight:600;color:var(--leaf);background:var(--leaf-soft);padding:6px 12px;border-radius:20px;white-space:nowrap}
   .status-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--leaf);animation:pulse 2s infinite}
   .map-card{background:var(--mist);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
   .farm-map{width:100%;height:auto;display:block;border-radius:10px}
   .batt-bar{height:9px;background:var(--line);border-radius:6px;overflow:hidden}
   .batt-fill{height:100%;border-radius:6px;transition:width .6s,background .6s}
-  @media(max-width:860px){ .robot-grid{grid-template-columns:1fr} .domain-tab{padding:8px 11px} }
+  @media(max-width:900px){ .fleet-grid{grid-template-columns:1fr} }
+  @media(max-width:860px){ .domain-tab{padding:8px 11px} }
   @media(max-width:560px){ .clockbox{display:none} }
 </style>
 </head>
@@ -871,16 +877,19 @@ function tick(){
 let activeDomain = 'farm';
 
 const ROBOT = {
-  name:'농업 로봇 1호', model:'SUNGHO-RS AGRI',
-  cameraSrc:'data/robot/camera.mp4', image:'assets/robot.png',
+  img:'data/robot/robot.png', cameraSrc:'data/robot/camera.mp4',
   views:[
     {id:'camera',  group:'로봇 관제', nav:'실시간 카메라', icon:ICON.cam},
     {id:'control', group:'로봇 관제', nav:'통합 관제',   icon:ICON.gauge},
   ],
 };
 const ROBOT_STATUS=['자율주행 중','작물 스캔 중','병해충 탐지','구역 이동 중'];
-const ROBOT_PATH=[{x:.14,y:.28},{x:.52,y:.28},{x:.52,y:.62},{x:.86,y:.62},{x:.86,y:.84},{x:.2,y:.84},{x:.14,y:.5}];
-const robot={battery:87, speed:0.8, signal:94, temp:34, statusIdx:0, wpi:0, x:.14, y:.5, up:126};
+// 편대(3대) — 통합 관제에서 한 화면에 동시 모니터링
+const ROBOTS=[
+  {id:1,name:'로봇 1호',model:'EVE Clever',color:'#256B4E',battery:87,speed:.8,signal:94,temp:34,statusIdx:0,wpi:0,up:126,x:.14,y:.26,path:[{x:.14,y:.26},{x:.5,y:.26},{x:.5,y:.48},{x:.16,y:.48}]},
+  {id:2,name:'로봇 2호',model:'EVE Clever',color:'#3E6E8E',battery:63,speed:.7,signal:90,temp:36,statusIdx:1,wpi:0,up:212,x:.58,y:.32,path:[{x:.58,y:.32},{x:.86,y:.32},{x:.86,y:.58},{x:.58,y:.58}]},
+  {id:3,name:'로봇 3호',model:'EVE Clever',color:'#C98A21',battery:37,speed:.5,signal:88,temp:33,statusIdx:3,wpi:0,up:47,x:.2,y:.7,path:[{x:.2,y:.7},{x:.62,y:.7},{x:.62,y:.86},{x:.2,y:.86}]},
+];
 let robotTimer=null;
 
 function buildDomainTabs(){
@@ -920,7 +929,7 @@ function renderRobotContent(){
 }
 function cameraHTML(){
   return `<div class="cam-card">
-    <div class="cam-head"><span class="live-badge"><span class="dot"></span> LIVE</span><span>${ROBOT.name} · 전방 카메라</span><span class="spacer"></span><span id="camClock">--:--:--</span></div>
+    <div class="cam-head"><span class="live-badge"><span class="dot"></span> LIVE</span><span>${ROBOTS[0].name} · 전방 카메라</span><span class="spacer"></span><span id="camClock">--:--:--</span></div>
     <div class="cam-stage">
       <video id="camVideo" src="${ROBOT.cameraSrc}" autoplay muted loop playsinline></video>
       <div class="cam-scan"></div>
@@ -932,37 +941,42 @@ function cameraHTML(){
 function showCamFallback(){ const f=document.getElementById('camFallback'); if(f) f.style.display='flex'; }
 
 function controlHTML(){
-  return `<div class="readout" id="robotReadout"></div>
-   <div class="robot-grid">
-     <div class="robot-photo">
-       <div class="imgwrap">
-         <img src="${ROBOT.image}" alt="${ROBOT.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-         <div class="ph" style="display:none">로봇 이미지 준비 중<br><span style="opacity:.8">이미지를 <code>${ROBOT.image}</code> 에 올리면 표시됩니다.</span></div>
-       </div>
-       <div class="robot-meta">
-         <div><div class="name">${ROBOT.name}</div><div class="model">${ROBOT.model}</div></div>
-         <span class="status-badge"><span class="dot"></span><span id="rStatus">가동 중</span></span>
-       </div>
+  return `<div class="map-card" style="margin-bottom:18px">
+     <h3 style="font-size:17.6px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px">농장 내 로봇 위치 <span class="hint">가동 ${ROBOTS.length}대 · 실시간</span></h3>
+     <div style="margin-top:12px">${mapSVG()}</div>
+     <div class="legend" style="margin-top:12px">${ROBOTS.map(r=>`<span><i style="width:9px;height:9px;border-radius:50%;background:${r.color};display:inline-block"></i>${r.name}</span>`).join('')}</div>
+   </div>
+   <div class="fleet-grid">${ROBOTS.map(robotCardHTML).join('')}</div>`;
+}
+function robotCardHTML(r){
+  return `<div class="robot-card" data-rid="${r.id}" style="--rc:${r.color}">
+     <div class="rc-head">
+       <div class="rc-thumb"><img src="${ROBOT.img}" alt="${r.name}" onerror="this.style.display='none'"></div>
+       <div class="rc-title"><div class="name">${r.name}</div><div class="model">${r.model}</div></div>
+       <span class="status-badge"><span class="dot"></span><span class="rc-status">${ROBOT_STATUS[r.statusIdx]}</span></span>
      </div>
-     <div class="map-card">
-       <h3 style="font-size:17.6px;font-weight:600;margin-bottom:12px">농장 내 위치</h3>
-       ${mapSVG()}
-       <div class="legend" style="margin-top:12px"><span><i style="width:9px;height:9px;border-radius:50%;background:#256B4E;display:inline-block"></i>로봇 현재 위치</span><span><i class="swatch" style="background:#b9c3ba"></i>이동 경로</span></div>
+     <div class="rc-batt"><div class="batt-bar"><div class="batt-fill rc-fill"></div></div><span class="rc-pct"></span></div>
+     <div class="rc-metrics">
+       <div><span>주행</span><span><b class="rc-speed"></b> m/s</span></div>
+       <div><span>신호</span><span><b class="rc-signal"></b> %</span></div>
+       <div><span>온도</span><span><b class="rc-temp"></b> °C</span></div>
+       <div><span>가동</span><b class="rc-up"></b></div>
      </div>
    </div>`;
 }
 function mapSVG(){
   const F={x:6,y:6,w:88,h:52};
-  const pts=ROBOT_PATH.map(p=>`${(F.x+p.x*F.w).toFixed(1)},${(F.y+p.y*F.h).toFixed(1)}`).join(' ');
+  const mapPt=p=>`${(F.x+p.x*F.w).toFixed(1)},${(F.y+p.y*F.h).toFixed(1)}`;
   let beds=''; for(let i=1;i<6;i++){ const gx=(F.x+F.w*i/6).toFixed(1); beds+=`<line x1="${gx}" y1="${F.y}" x2="${gx}" y2="${F.y+F.h}" stroke="#d5e0d3" stroke-width=".5"/>`; }
-  return `<svg class="farm-map" viewBox="0 0 100 64" role="img" aria-label="농장 맵과 로봇 위치">
+  const routes=ROBOTS.map(r=>`<polyline points="${r.path.map(mapPt).join(' ')}" fill="none" stroke="${r.color}" stroke-opacity=".3" stroke-width=".7" stroke-dasharray="2 2"/>`).join('');
+  const marks=ROBOTS.map(r=>`<g class="rmk" id="rmk-${r.id}" transform="translate(${(F.x+r.x*F.w).toFixed(1)} ${(F.y+r.y*F.h).toFixed(1)})">
+      <circle r="4" fill="${r.color}" opacity=".18"><animate attributeName="r" values="4;7;4" dur="2s" repeatCount="indefinite"/></circle>
+      <circle r="2.7" fill="${r.color}" stroke="#fff" stroke-width="1"/>
+      <text y="-5" text-anchor="middle" font-size="4.2" font-weight="700" fill="${r.color}">${r.id}</text>
+    </g>`).join('');
+  return `<svg class="farm-map" viewBox="0 0 100 64" role="img" aria-label="농장 맵과 로봇 ${ROBOTS.length}대 위치">
     <rect x="${F.x}" y="${F.y}" width="${F.w}" height="${F.h}" rx="3" fill="#e7efe4" stroke="#cbd8c6" stroke-width=".6"/>
-    ${beds}
-    <polyline points="${pts}" fill="none" stroke="#b9c3ba" stroke-width=".8" stroke-dasharray="2 2"/>
-    <g id="robotMarker" transform="translate(${(F.x+robot.x*F.w).toFixed(1)} ${(F.y+robot.y*F.h).toFixed(1)})">
-      <circle r="4" fill="rgba(37,107,78,.18)"><animate attributeName="r" values="4;7.5;4" dur="2s" repeatCount="indefinite"/></circle>
-      <circle r="2.6" fill="#256B4E" stroke="#fff" stroke-width="1"/>
-    </g>
+    ${beds}${routes}${marks}
   </svg>`;
 }
 
@@ -975,41 +989,41 @@ function goRobot(view){
   const cam=document.getElementById('camVideo');
   if(v.id==='camera'){ if(cam) cam.play?.().catch(()=>{}); }
   else if(cam){ cam.pause?.(); }
-  if(v.id==='control'){ renderRobotReadout(); updateMarker(); startRobot(); }
+  if(v.id==='control'){ updateFleetUI(); updateMarkers(); startRobot(); }
   else stopRobot();
 }
 function startRobot(){ if(!robotTimer) robotTimer=setInterval(robotTick,2000); }
 function stopRobot(){ if(robotTimer){ clearInterval(robotTimer); robotTimer=null; } }
 function robotTick(){
-  const wp=ROBOT_PATH[robot.wpi];
-  const dx=wp.x-robot.x, dy=wp.y-robot.y, dist=Math.hypot(dx,dy), step=0.05;
-  if(dist<step){ robot.x=wp.x; robot.y=wp.y; robot.wpi=(robot.wpi+1)%ROBOT_PATH.length; robot.statusIdx=(robot.statusIdx+1)%ROBOT_STATUS.length; }
-  else { robot.x+=dx/dist*step; robot.y+=dy/dist*step; }
-  robot.battery=+Math.max(12, robot.battery-0.2).toFixed(1);
-  robot.speed=+(0.6+Math.random()*0.6).toFixed(1);
-  robot.signal=Math.round(89+Math.random()*9);
-  robot.temp=+(33+Math.random()*3).toFixed(1);
-  robot.up+=1;
-  renderRobotReadout(); updateMarker();
+  ROBOTS.forEach(r=>{
+    const wp=r.path[r.wpi];
+    const dx=wp.x-r.x, dy=wp.y-r.y, dist=Math.hypot(dx,dy), step=0.045;
+    if(dist<step){ r.x=wp.x; r.y=wp.y; r.wpi=(r.wpi+1)%r.path.length; r.statusIdx=(r.statusIdx+1)%ROBOT_STATUS.length; }
+    else { r.x+=dx/dist*step; r.y+=dy/dist*step; }
+    r.battery=+Math.max(10, r.battery-0.15).toFixed(1);
+    r.speed=+(0.5+Math.random()*0.6).toFixed(1);
+    r.signal=Math.round(87+Math.random()*11);
+    r.temp=+(32+Math.random()*4).toFixed(1);
+    r.up+=1;
+  });
+  updateFleetUI(); updateMarkers();
 }
-function updateMarker(){
-  const g=document.getElementById('robotMarker'); if(!g) return;
-  g.setAttribute('transform',`translate(${(6+robot.x*88).toFixed(1)} ${(6+robot.y*52).toFixed(1)})`);
+function updateMarkers(){
+  ROBOTS.forEach(r=>{ const g=document.getElementById('rmk-'+r.id); if(g) g.setAttribute('transform',`translate(${(6+r.x*88).toFixed(1)} ${(6+r.y*52).toFixed(1)})`); });
 }
-function renderRobotReadout(){
-  const el=document.getElementById('robotReadout'); if(!el) return;
-  const st=ROBOT_STATUS[robot.statusIdx];
-  const s=document.getElementById('rStatus'); if(s) s.textContent=st;
-  const bcol = robot.battery>40?'var(--leaf)':robot.battery>20?'var(--amber)':'var(--danger)';
-  const upH=Math.floor(robot.up/60), upM=robot.up%60;
-  el.innerHTML = [
-    `<div class="cell"><div class="k">배터리</div><div class="v">${Math.round(robot.battery)}<span class="u">%</span></div><div class="batt-bar" style="margin-top:9px"><div class="batt-fill" style="width:${robot.battery}%;background:${bcol}"></div></div></div>`,
-    `<div class="cell"><div class="k">상태</div><div class="v" style="font-size:19.5px">${st}</div></div>`,
-    `<div class="cell"><div class="k">주행 속도</div><div class="v">${robot.speed}<span class="u">m/s</span></div></div>`,
-    `<div class="cell"><div class="k">통신 신호</div><div class="v">${robot.signal}<span class="u">%</span></div></div>`,
-    `<div class="cell"><div class="k">구동부 온도</div><div class="v">${robot.temp}<span class="u">°C</span></div></div>`,
-    `<div class="cell"><div class="k">가동 시간</div><div class="v">${upH}<span class="u">시간</span> ${upM}<span class="u">분</span></div></div>`,
-  ].join('');
+function updateFleetUI(){
+  ROBOTS.forEach(r=>{
+    const c=document.querySelector(`.robot-card[data-rid="${r.id}"]`); if(!c) return;
+    const bcol = r.battery>40?'var(--leaf)':r.battery>20?'var(--amber)':'var(--danger)';
+    const fill=c.querySelector('.rc-fill'); if(fill){ fill.style.width=r.battery+'%'; fill.style.background=bcol; }
+    const set=(sel,val)=>{ const e=c.querySelector(sel); if(e) e.textContent=val; };
+    set('.rc-pct', Math.round(r.battery)+'%');
+    set('.rc-status', ROBOT_STATUS[r.statusIdx]);
+    set('.rc-speed', r.speed);
+    set('.rc-signal', r.signal);
+    set('.rc-temp', r.temp);
+    set('.rc-up', `${Math.floor(r.up/60)}시간 ${r.up%60}분`);
+  });
 }
 
 /* ================= 부팅 ================= */
