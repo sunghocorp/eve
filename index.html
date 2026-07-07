@@ -184,6 +184,11 @@
   /* Mobile menu button */
   .menu-btn{display:none;background:var(--mist);border:1px solid var(--line);border-radius:9px;width:38px;height:38px;cursor:pointer;align-items:center;justify-content:center}
   .menu-btn .ico{width:19px;height:19px;stroke:var(--ink)}
+  /* 상단 아이콘 버튼(전체화면 등) */
+  .icon-btn{background:var(--mist);border:1px solid var(--line);border-radius:9px;width:38px;height:38px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex:none;transition:background .15s}
+  .icon-btn .ico{width:19px;height:19px;stroke:var(--ink)}
+  .icon-btn:hover{background:var(--paper)}
+  .icon-btn:focus-visible{outline:2px solid var(--leaf);outline-offset:1px}
   .scrim{display:none}
 
   /* ---------- Responsive ---------- */
@@ -256,9 +261,14 @@
           <div class="crumb" id="topCrumb">EVE</div>
         </div>
       </div>
-      <div class="clockbox">
-        <div class="clock" id="clock">--:--:--</div>
-        <div class="stamp" id="stamp">데이터 기준: 오늘</div>
+      <div style="display:flex;align-items:center;gap:14px">
+        <div class="clockbox">
+          <div class="clock" id="clock">--:--:--</div>
+          <div class="stamp" id="stamp">데이터 기준: 오늘</div>
+        </div>
+        <button class="icon-btn" id="fsBtn" type="button" aria-label="전체화면" title="전체화면">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.9"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
       </div>
     </header>
 
@@ -792,6 +802,26 @@ const sb=document.getElementById('sidebar'), scrim=document.getElementById('scri
 function closeSidebar(){ sb.classList.remove('open'); scrim.classList.remove('show'); }
 document.getElementById('menuBtn').onclick=()=>{ sb.classList.add('open'); scrim.classList.add('show'); };
 scrim.onclick=closeSidebar;
+
+/* 전체화면 토글 (크롬 주소창·탭 숨김 → 앱처럼) */
+const FS_EXPAND=`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.9"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>`;
+const FS_COMPRESS=`<svg class="ico" viewBox="0 0 24 24" fill="none" stroke-width="1.9"><path d="M8 3v3a2 2 0 0 1-2 2H3M16 3v3a2 2 0 0 0 2 2h3M8 21v-3a2 2 0 0 0-2-2H3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>`;
+const fsBtn=document.getElementById('fsBtn');
+const isFs=()=> document.fullscreenElement || document.webkitFullscreenElement;
+fsBtn.onclick=()=>{
+  try{
+    if(isFs()){ (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
+    else { const el=document.documentElement; (el.requestFullscreen||el.webkitRequestFullscreen).call(el); }
+  }catch(e){ console.warn('전체화면 미지원:', e.message); }
+};
+function updateFsIcon(){
+  const on=isFs();
+  fsBtn.innerHTML = on?FS_COMPRESS:FS_EXPAND;
+  fsBtn.setAttribute('aria-label', on?'전체화면 종료':'전체화면');
+  fsBtn.setAttribute('title', on?'전체화면 종료 (Esc)':'전체화면');
+}
+document.addEventListener('fullscreenchange', updateFsIcon);
+document.addEventListener('webkitfullscreenchange', updateFsIcon);
 
 /* 시계 */
 function tick(){
